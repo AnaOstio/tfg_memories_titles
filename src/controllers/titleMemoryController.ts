@@ -153,10 +153,26 @@ export default class TitleMemoryController {
     static async search(req: Request, res: Response) {
         try {
             const { name, titleCode, page = 1, limit = 10 } = req.query;
-            const filter: ITitleMemoryFilter = {
-                name: name as string,
-                titleCode: titleCode ? Number(titleCode) : undefined
-            };
+
+            // Validar parámetros
+            if (!name && !titleCode) {
+                return res.status(400).json({
+                    message: 'Debe proporcionar al menos un criterio de búsqueda (name o titleCode)'
+                });
+            }
+
+            const filter: ITitleMemoryFilter = {};
+
+            if (name) filter.name = name as string;
+            if (titleCode) {
+                const code = Number(titleCode);
+                if (isNaN(code)) {
+                    return res.status(400).json({
+                        message: 'titleCode debe ser un número válido'
+                    });
+                }
+                filter.titleCode = code;
+            }
 
             const paginationOptions: IPaginationOptions = {
                 page: Number(page),
@@ -166,8 +182,10 @@ export default class TitleMemoryController {
             const result = await TitleMemoryService.search(filter, paginationOptions);
             res.json(result);
         } catch (error) {
-            console.error(error);
-            res.status(500).json({ message: 'Internal server error' });
+            console.error('Search error:', error);
+            res.status(500).json({
+                message: 'Internal server error'
+            });
         }
     }
 }

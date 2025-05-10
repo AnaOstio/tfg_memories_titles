@@ -122,12 +122,24 @@ export default class TitleMemoryService {
     }
 
     static async search(filter: ITitleMemoryFilter, paginationOptions: IPaginationOptions): Promise<IPaginatedResult<ITitleMemory>> {
-        const query = TitleMemory.find({
-            $or: [
-                { name: { $regex: filter.name || '', $options: 'i' } },
-                { titleCode: filter.titleCode }
-            ]
-        });
+        const queryConditions = [];
+
+        if (filter.name) {
+            queryConditions.push({
+                name: { $regex: filter.name, $options: 'i' }
+            });
+        }
+
+        if (filter.titleCode) {
+            queryConditions.push({
+                titleCode: filter.titleCode
+            });
+        }
+
+        const query = queryConditions.length > 0
+            ? TitleMemory.find({ $or: queryConditions })
+            : TitleMemory.find();
+
         return await paginate<ITitleMemory>(query, paginationOptions);
     }
 }
