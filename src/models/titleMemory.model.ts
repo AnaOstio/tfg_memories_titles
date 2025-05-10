@@ -13,9 +13,7 @@ const TitleMemorySchema = new Schema<ITitleMemory>({
     yearDelivery: { type: Number, required: true },
     totalCredits: { type: Number, required: true },
     distributedCredits: { type: Schema.Types.Mixed, required: true },
-    existingSkills: { type: [String], default: [] },
     skills: { type: Schema.Types.Mixed, default: [] },
-    existinglearningOutcomes: { type: Schema.Types.Mixed, default: [] },
     learningOutcomes: { type: Schema.Types.Mixed, default: [] },
     userId: { type: String, required: true }
 }, {
