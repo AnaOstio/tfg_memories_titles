@@ -11,9 +11,18 @@ import { validateSkills, createSkills, createLearningOutcomes, validateLearningO
 import { IPaginatedResult, IPaginationOptions } from '../interfaces/pagination.interface';
 
 export default class TitleMemoryService {
-    static async getAll(filter: ITitleMemoryFilter, paginationOptions: IPaginationOptions): Promise<IPaginatedResult<ITitleMemory>> {
-        const query = TitleMemory.find(filter);
-        return await paginate<ITitleMemory>(query, paginationOptions);
+    static async getAll(
+        filter: ITitleMemoryFilter,
+        paginationOptions: IPaginationOptions
+    ): Promise<IPaginatedResult<ITitleMemory>> {
+        try {
+            const query = TitleMemory.find(filter);
+            const result = await paginate<ITitleMemory>(query, paginationOptions);
+            return result;
+        } catch (error) {
+            console.error('Error in TitleMemoryService.getAll:', error);
+            throw error;
+        }
     }
 
     static async bulkCreate(titleMemories: ITitleMemory[]): Promise<ITitleMemory[]> {
@@ -41,33 +50,35 @@ export default class TitleMemoryService {
                 const newSkillsInput = titleMemoryData.skills as unknown as ISkillInput[];
                 const skillsToCreate = newSkillsInput.map(({ generated_id, ...rest }) => rest);
 
-                const createdSkills = await createSkills(skillsToCreate);
+                if (skillsToCreate.length !== 0) {
 
-                // Mapear generated_id a IDs reales
-                newSkillsInput.forEach((skill, index) => {
-                    if (skill.generated_id) {
-                        generatedIdToRealId[skill.generated_id] = createdSkills[index]._id;
-                    }
-                });
+                    const createdSkills = await createSkills(skillsToCreate);
+                    // Mapear generated_id a IDs reales
+                    newSkillsInput.forEach((skill, index) => {
+                        if (skill.generated_id) {
+                            generatedIdToRealId[skill.generated_id] = createdSkills[index]._id;
+                        }
+                    });
 
-                // Agregar IDs al array final
-                finalSkills.push(...createdSkills.map(skill => skill._id));
+                    // Agregar IDs al array final
+                    finalSkills.push(...createdSkills.map(skill => skill._id));
+                }
             }
 
             // 3. Procesar learning outcomes
             const finalLearningOutcomes: Array<{ [key: string]: string[] }> = [];
 
             // Procesar existing learning outcomes
-            if (titleMemoryData.existinglearningOutcomes) {
-                const outcomeIds = titleMemoryData.existinglearningOutcomes.map(o => Object.keys(o)[0]);
+            if ((titleMemoryData.existinglearningOutcomes ?? []).length !== 0) {
+                const outcomeIds = (titleMemoryData.existinglearningOutcomes ?? []).map(o => Object.keys(o)[0]);
                 const areOutcomesValid = await validateLearningOutcomes(outcomeIds);
                 if (!areOutcomesValid) throw new Error('Invalid existing learning outcomes');
-
-                for (const outcome of titleMemoryData.existinglearningOutcomes) {
+                for (const outcome of (titleMemoryData.existinglearningOutcomes ?? [])) {
                     const outcomeId = Object.keys(outcome)[0];
                     const skillIds = outcome[outcomeId].map(id => generatedIdToRealId[id] || id);
                     finalLearningOutcomes.push({ [outcomeId]: skillIds });
                 }
+
             }
 
             // Procesar nuevos learning outcomes
@@ -78,13 +89,16 @@ export default class TitleMemoryService {
                     skills_id: outcome.skills_id.map(id => generatedIdToRealId[id] || id)
                 }));
 
-                const createdOutcomes = await createLearningOutcomes(outcomesToCreate);
 
-                createdOutcomes.forEach((outcome, index) => {
-                    const skillIds = newOutcomesInput[index].skills_id
-                        .map(id => generatedIdToRealId[id] || id);
-                    finalLearningOutcomes.push({ [outcome._id]: skillIds });
-                });
+                if (outcomesToCreate.length !== 0) {
+                    const createdOutcomes = await createLearningOutcomes(outcomesToCreate);
+
+                    createdOutcomes.forEach((outcome, index) => {
+                        const skillIds = newOutcomesInput[index].skills_id
+                            .map(id => generatedIdToRealId[id] || id);
+                        finalLearningOutcomes.push({ [outcome._id]: skillIds });
+                    });
+                }
             }
 
             // 4. Crear el documento final
@@ -121,25 +135,63 @@ export default class TitleMemoryService {
         return await paginate<ITitleMemory>(query, paginationOptions);
     }
 
-    static async search(filter: ITitleMemoryFilter, paginationOptions: IPaginationOptions): Promise<IPaginatedResult<ITitleMemory>> {
-        const queryConditions = [];
+    static async search(
+        filter: ITitleMemoryFilter,
+        paginationOptions: IPaginationOptions
+    ): Promise<IPaginatedResult<ITitleMemory>> {
+        try {
+            const queryConditions: any = {};
 
-        if (filter.name) {
-            queryConditions.push({
-                name: { $regex: filter.name, $options: 'i' }
-            });
+            // 1. Búsqueda por nombre (insensible a mayúsculas/minúsculas, coincidencia parcial)
+            if (filter.name) {
+                queryConditions.name = { $regex: filter.name, $options: 'i' };
+            }
+
+            // 2. Búsqueda por código de título (exacta)
+            if (filter.titleCode) {
+                queryConditions.titleCode = filter.titleCode;
+            }
+
+            // 3. Filtros para campos de array (coincidencia con AL MENOS UNO de los valores)
+            if (filter.universities?.length) {
+                queryConditions.universities = { $in: filter.universities };
+            }
+
+            if (filter.centers?.length) {
+                queryConditions.centers = { $in: filter.centers };
+            }
+
+            // 4. Filtro para campos de string simple (coincidencia exacta o con $in)
+            if (filter.academicLevel?.length) {
+                // academicLevel es string (no array) en el documento, pero el filtro viene como array
+                queryConditions.academicLevel = { $in: filter.academicLevel };
+            }
+
+            if (filter.branchAcademic?.length) {
+                // branch es string en el documento
+                queryConditions.branch = { $in: filter.branchAcademic };
+            }
+
+            if (filter.academicFields?.length) {
+                // academicField es string en el documento
+                queryConditions.academicField = { $in: filter.academicFields };
+            }
+
+            // 5. Filtro por año (yearDelivery en el documento)
+            if (filter.yearFrom || filter.yearTo) {
+                queryConditions.yearDelivery = {};
+                if (filter.yearFrom) queryConditions.yearDelivery.$gte = filter.yearFrom;
+                if (filter.yearTo) queryConditions.yearDelivery.$lte = filter.yearTo;
+            }
+
+            // 6. Construir la consulta con posible ordenación
+            const query = TitleMemory.find(queryConditions)
+                .sort({ yearDelivery: -1, name: 1 }); // Ordenar por año descendente y nombre ascendente
+
+            return await paginate<ITitleMemory>(query, paginationOptions);
+        } catch (error) {
+            console.error('Error in TitleMemoryService.search:', error);
+            throw new Error('Failed to search title memories');
         }
-
-        if (filter.titleCode) {
-            queryConditions.push({
-                titleCode: filter.titleCode
-            });
-        }
-
-        const query = queryConditions.length > 0
-            ? TitleMemory.find({ $or: queryConditions })
-            : TitleMemory.find();
-
-        return await paginate<ITitleMemory>(query, paginationOptions);
     }
 }

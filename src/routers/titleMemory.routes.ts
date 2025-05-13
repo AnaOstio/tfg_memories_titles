@@ -5,7 +5,7 @@ const router = Router();
 
 // Rutas públicas
 router.get('/', TitleMemoryController.getAll);
-router.get('/search', TitleMemoryController.search);
+router.post('/search', TitleMemoryController.search);
 router.get('/:id', TitleMemoryController.getById);
 
 // Rutas que requieren autenticación (se verifica en cada controlador)

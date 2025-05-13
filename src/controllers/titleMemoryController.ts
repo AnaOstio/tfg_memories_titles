@@ -3,9 +3,11 @@ import TitleMemoryService from '../services/titleMemory.service';
 import {
     ITitleMemory,
     ITitleMemoryFilter,
+    ITitleMemorySearchParams,
 } from '../interfaces/titleMemory.interface';
 import { IPaginationOptions } from '../interfaces/pagination.interface';
 import { validateToken } from '../services/auth.services';
+import { } from '../interfaces/titleMemory.interface';
 
 export default class TitleMemoryController {
     static async getAll(req: Request, res: Response) {
@@ -152,26 +154,30 @@ export default class TitleMemoryController {
 
     static async search(req: Request, res: Response) {
         try {
-            const { name, titleCode, page = 1, limit = 10 } = req.query;
+            const { filters, page = 1, limit = 10 }: ITitleMemorySearchParams = req.body;
 
-            // Validar parámetros
-            if (!name && !titleCode) {
+            // Validar parámetros básicos
+            if (!filters) {
                 return res.status(400).json({
-                    message: 'Debe proporcionar al menos un criterio de búsqueda (name o titleCode)'
+                    message: 'Debe proporcionar al menos un filtro de búsqueda'
                 });
             }
 
+            // Construir el filtro basado en la nueva estructura
             const filter: ITitleMemoryFilter = {};
 
-            if (name) filter.name = name as string;
-            if (titleCode) {
-                const code = Number(titleCode);
-                if (isNaN(code)) {
-                    return res.status(400).json({
-                        message: 'titleCode debe ser un número válido'
-                    });
-                }
-                filter.titleCode = code;
+            // Mapear los nuevos filtros a la estructura esperada por el servicio
+            if (filters.titleName) filter.name = filters.titleName;
+            if (filters.academicLevel?.length) filter.academicLevel = filters.academicLevel;
+            if (filters.academicFields?.length) filter.academicFields = filters.academicFields;
+            if (filters.branchAcademic?.length) filter.branchAcademic = filters.branchAcademic;
+            if (filters.universities?.length) filter.universities = filters.universities;
+            if (filters.centers?.length) filter.centers = filters.centers;
+
+            // Manejar el rango de años
+            if (filters.year?.length === 2) {
+                filter.yearFrom = Math.min(...filters.year);
+                filter.yearTo = Math.max(...filters.year);
             }
 
             const paginationOptions: IPaginationOptions = {

@@ -46,7 +46,28 @@ export interface ITitleMemory extends ITitleMemoryInput, Document {
 }
 
 export interface ITitleMemoryFilter {
-    name?: string;
     titleCode?: number;
-    userId?: string;
+    universities?: string[];
+    centers?: string[];
+    name?: string;
+    academicLevel?: string[];
+    academicFields?: string[];
+    branchAcademic?: string[];
+    status?: string[];
+    yearTo?: number;
+    yearFrom?: number;
+}
+
+export interface ITitleMemorySearchParams {
+    filters: {
+        titleName?: string;
+        academicLevel?: string[];
+        academicFields?: string[];
+        branchAcademic?: string[];
+        universities?: string[];
+        centers?: string[];
+        year?: number[];
+    };
+    page: number;
+    limit: number;
 }
