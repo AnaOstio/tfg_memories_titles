@@ -56,6 +56,7 @@ export interface ITitleMemoryFilter {
     status?: string[];
     yearTo?: number;
     yearFrom?: number;
+    userId?: string;
 }
 
 export interface ITitleMemorySearchParams {
@@ -70,4 +71,5 @@ export interface ITitleMemorySearchParams {
     };
     page: number;
     limit: number;
+    fromUser?: boolean;
 }

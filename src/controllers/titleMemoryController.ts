@@ -154,7 +154,7 @@ export default class TitleMemoryController {
 
     static async search(req: Request, res: Response) {
         try {
-            const { filters, page = 1, limit = 10 }: ITitleMemorySearchParams = req.body;
+            const { filters, page = 1, limit = 10, fromUser = false }: ITitleMemorySearchParams = req.body;
 
             // Validar parámetros básicos
             if (!filters) {
@@ -173,6 +173,17 @@ export default class TitleMemoryController {
             if (filters.branchAcademic?.length) filter.branchAcademic = filters.branchAcademic;
             if (filters.universities?.length) filter.universities = filters.universities;
             if (filters.centers?.length) filter.centers = filters.centers;
+
+            // Necesito sacar solo las del usuario si esta a true
+            if (fromUser) {
+                const token = req.headers.authorization?.split(' ')[1];
+                if (!token) return res.status(401).json({ message: 'No token provided' });
+
+                const { isValid, userId } = await validateToken(token);
+                if (!isValid || !userId) return res.status(401).json({ message: 'Invalid token' });
+
+                filter.userId = userId;
+            }
 
             // Manejar el rango de años
             if (filters.year?.length === 2) {

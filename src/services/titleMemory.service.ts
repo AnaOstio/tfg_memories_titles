@@ -184,6 +184,11 @@ export default class TitleMemoryService {
                 if (filter.yearTo) queryConditions.yearDelivery.$lte = filter.yearTo;
             }
 
+            // 6. Filtro por ID de usuario (si se proporciona)
+            if (filter.userId) {
+                queryConditions.userId = filter.userId;
+            }
+
             // 6. Construir la consulta con posible ordenación
             const query = TitleMemory.find(queryConditions)
                 .sort({ yearDelivery: -1, name: 1 }); // Ordenar por año descendente y nombre ascendente
