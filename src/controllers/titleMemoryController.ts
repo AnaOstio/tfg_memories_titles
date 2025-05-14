@@ -167,7 +167,7 @@ export default class TitleMemoryController {
             const filter: ITitleMemoryFilter = {};
 
             // Mapear los nuevos filtros a la estructura esperada por el servicio
-            if (filters.titleName) filter.name = filters.titleName;
+            if (filters.titleName) filter.name = filters.titleName[0];
             if (filters.academicLevel?.length) filter.academicLevel = filters.academicLevel;
             if (filters.academicFields?.length) filter.academicFields = filters.academicFields;
             if (filters.branchAcademic?.length) filter.branchAcademic = filters.branchAcademic;
