@@ -14,5 +14,8 @@ router.post('/bulk', TitleMemoryController.bulkCreate);
 router.put('/:id', TitleMemoryController.update);
 router.delete('/:id', TitleMemoryController.delete);
 router.get('/user/memories', TitleMemoryController.getByUserId);
+router.post('/check-title', TitleMemoryController.checkTitleUser);
+router.post('/validate-skills', TitleMemoryController.validateSkillsFromTitle);
+router.post('/validate-lerning-outcomes', TitleMemoryController.validateOutcomesFromTitle);
 
 export default router;

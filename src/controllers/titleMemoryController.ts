@@ -205,4 +205,54 @@ export default class TitleMemoryController {
             });
         }
     }
+
+    static async checkTitleUser(req: Request, res: Response) {
+        try {
+
+            const { titleMemoryId, userId } = req.body;
+            const result = await TitleMemoryService.checkTitleUser(titleMemoryId, userId);
+
+            if (result) {
+                return res.status(200).json({ message: 'El título ya existe para este usuario' });
+            }
+
+            res.status(401).json({ message: 'El titulo no pertenece a este usuario' });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    }
+
+    static async validateSkillsFromTitle(req: Request, res: Response) {
+        try {
+            const { titleMemoryId, skills } = req.body;
+            const result = await TitleMemoryService.validateSkillsFromTitle(titleMemoryId, skills);
+
+            if (result) {
+                return res.status(200).json({ message: 'El título tiene habilidades asociadas' });
+            }
+
+            res.status(401).json({ message: 'El titulo no tiene habilidades asociadas' });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    }
+
+
+    static async validateOutcomesFromTitle(req: Request, res: Response) {
+        try {
+            const { titleMemoryId, learningOutcomes } = req.body;
+            const result = await TitleMemoryService.validateOutcomesFromTitle(titleMemoryId, learningOutcomes);
+
+            if (result) {
+                return res.status(200).json({ message: 'El título tiene resultados de aprendizaje asociados' });
+            }
+
+            res.status(401).json({ message: 'El titulo no tiene resultados de aprendizaje asociados' });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    }
 }

@@ -199,4 +199,44 @@ export default class TitleMemoryService {
             throw new Error('Failed to search title memories');
         }
     }
+
+    static async checkTitleUser(titleMemoryId: string, userId: string): Promise<boolean> {
+        const titleMemory = await TitleMemory.findOne({ _id: titleMemoryId, userId });
+        return !!titleMemory;
+    }
+
+    static async validateSkillsFromTitle(titleMemoryId: string, skills: any): Promise<boolean> {
+        const titleMemory = await TitleMemory.findById(titleMemoryId);
+        if (!titleMemory) {
+            throw new Error('Title memory not found');
+        }
+
+        const skillsFromTitle = titleMemory.skills || [];
+        const missingSkills = skills.filter((skill: any) => !skillsFromTitle.includes(skill));
+
+        if (missingSkills.length > 0) {
+            throw new Error(`The following skills are not present in the title memory: ${missingSkills.join(', ')}`);
+        }
+
+        return true;
+    }
+
+    static async validateOutcomesFromTitle(titleMemoryId: string, outcomes: any): Promise<boolean> {
+        const titleMemory = await TitleMemory.findById(titleMemoryId);
+        if (!titleMemory) {
+            throw new Error('Title memory not found');
+        }
+        const outcomesFromTitle = titleMemory.learningOutcomes || [];
+        // Extraer todas las keys (IDs de outcomes) del hash
+        const outcomeKeys = outcomesFromTitle.map((o: any) => Object.keys(o)[0]);
+
+        // Buscar los outcomes que faltan
+        const missingOutcomes = outcomes.filter((id: string) => !outcomeKeys.includes(id));
+
+        if (missingOutcomes.length > 0) {
+            throw new Error(`The following learning outcomes are not present in the title memory: ${missingOutcomes.join(', ')}`);
+        }
+
+        return true;
+    }
 }
