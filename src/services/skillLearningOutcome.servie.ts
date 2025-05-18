@@ -22,7 +22,7 @@ export const validateLearningOutcomes = async (learningOutcomesIds: string[]): P
 
 export const createSkills = async (skills: any[]): Promise<{ _id: string, generated_id?: string }[]> => {
     try {
-        const response = await axios.post(`${SKILLS_SERVICE_URL}/skills/bulk`, { skills });
+        const response = await axios.post(`${SKILLS_SERVICE_URL}/api/skills/bulk`, { skills });
         return response.data;
     } catch (error) {
         throw new Error('Error creating skills');
@@ -31,7 +31,7 @@ export const createSkills = async (skills: any[]): Promise<{ _id: string, genera
 
 export const createLearningOutcomes = async (outcomes: any[]): Promise<{ _id: string }[]> => {
     try {
-        const response = await axios.post(`${SKILLS_SERVICE_URL}/learning-outcomes/bulk`, outcomes);
+        const response = await axios.post(`${SKILLS_SERVICE_URL}/api/learning-outcomes/bulk`, outcomes);
         return response.data;
     } catch (error) {
         throw new Error('Error creating learning outcomes');
