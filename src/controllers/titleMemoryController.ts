@@ -1,13 +1,17 @@
 import { Request, Response } from 'express';
 import TitleMemoryService from '../services/titleMemory.service';
 import {
+    ISkillInput,
     ITitleMemory,
     ITitleMemoryFilter,
+    ITitleMemoryInput,
     ITitleMemorySearchParams,
 } from '../interfaces/titleMemory.interface';
 import { IPaginationOptions } from '../interfaces/pagination.interface';
 import { validateToken } from '../services/auth.services';
 import { } from '../interfaces/titleMemory.interface';
+import { validateLearningOutcomes, validateSkills } from '../services/skillLearningOutcome.servie';
+import mongoose from 'mongoose';
 
 export default class TitleMemoryController {
     static async getAll(req: Request, res: Response) {
@@ -55,7 +59,7 @@ export default class TitleMemoryController {
             const { isValid, userId } = await validateToken(token);
             if (!isValid || !userId) return res.status(401).json({ message: 'Invalid token' });
 
-            const titleMemoryData: ITitleMemory = {
+            const titleMemoryData: ITitleMemoryInput = {
                 ...req.body,
                 userId
             };
@@ -117,10 +121,41 @@ export default class TitleMemoryController {
     static async getById(req: Request, res: Response) {
         try {
             const { id } = req.params;
+            if (!id) {
+                return res.status(400).json({ message: 'ID is required' });
+            }
+
+            if (!mongoose.Types.ObjectId.isValid(id)) {
+                return res.status(400).json({ message: 'Invalid ID format' });
+            }
+
             const result = await TitleMemoryService.getById(id);
 
             if (!result) {
                 return res.status(404).json({ message: 'Title memory not found' });
+            }
+
+            // Ahora sí cumple con string[] puro
+            const [areSkillsValid, data] = await validateSkills(result.skills ?? []);
+
+            if (areSkillsValid) {
+                result.skills = data.map((item: any) => ({
+                    _id: item._id,
+                    code: item.name,
+                    description: item.description,
+                    type: item.type,
+                }));
+            }
+
+            const [areOutcomesValid, outcomesData] = await validateLearningOutcomes(result.learningOutcomes?.flatMap(obj => Object.keys(obj)) || []);
+
+            if (areOutcomesValid) {
+                result.learningOutcomes = outcomesData.map((item: any) => ({
+                    _id: item._id,
+                    name: item.name,
+                    description: item.description,
+                    associatedSkills: item.skills_id,
+                }));
             }
 
             res.json(result);

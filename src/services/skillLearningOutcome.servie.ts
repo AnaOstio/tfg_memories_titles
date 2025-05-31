@@ -2,21 +2,21 @@ import axios from 'axios';
 
 const SKILLS_SERVICE_URL = process.env.SKILLS_SERVICE_URL || 'http://localhost:3001';
 
-export const validateSkills = async (skillIds: string[]): Promise<boolean> => {
+export const validateSkills = async (skillIds: string[]): Promise<[boolean, any]> => {
     try {
         const response = await axios.post(`${SKILLS_SERVICE_URL}/api/skills/validate`, { skillIds });
-        return response.status === 200;
+        return [response.status === 200, response.data];
     } catch (error) {
-        return false;
+        return [false, null];
     }
 };
 
-export const validateLearningOutcomes = async (learningOutcomesIds: string[]): Promise<boolean> => {
+export const validateLearningOutcomes = async (learningOutcomesIds: string[]): Promise<[boolean, any]> => {
     try {
         const response = await axios.post(`${SKILLS_SERVICE_URL}/api/learning-outcomes/validate`, { learningOutcomesIds });
-        return response.status === 200;
+        return [response.status === 200, response.data];;
     } catch (error) {
-        return false;
+        return [false, null];
     }
 };
 
