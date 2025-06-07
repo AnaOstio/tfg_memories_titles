@@ -23,7 +23,7 @@ const swaggerOptions: Options = {
         security: [{ bearerAuth: [] }]
     },
     // Point at your route/controller files where you’ll add JSDoc comments:
-    apis: ['src/routers/*.ts', 'src/controllers/*.ts']
+    apis: ['src/routers/*.ts', 'src/controllers/*.ts', 'src/config/docs/*.ts'],
 };
 
 export default swaggerOptions;
