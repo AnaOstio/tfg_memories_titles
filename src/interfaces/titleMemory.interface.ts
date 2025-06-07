@@ -1,14 +1,11 @@
 import { Document } from 'mongoose';
 
 export interface ISkillInput {
-    name: string;
-    description: string;
-    type: string;
+    name?: string;
+    description?: string;
+    type?: string;
     generated_id?: string;
-}
-
-export interface ISkill extends ISkillInput {
-    _id: string;
+    _id?: string;
 }
 
 export interface ILearningOutcomeInput {
@@ -22,7 +19,7 @@ export interface ILearningOutcome extends ILearningOutcomeInput {
 }
 
 export interface ITitleMemoryInput {
-    titleCode: number;
+    titleCode: string;
     universities: string[];
     centers: string[];
     name: string;
@@ -40,13 +37,28 @@ export interface ITitleMemoryInput {
     userId: string;
 }
 
-export interface ITitleMemory extends ITitleMemoryInput, Document {
+export interface ITitleMemory extends Document {
+    titleCode: string;
+    universities: string[];
+    centers: string[];
+    name: string;
+    academicLevel: string;
+    branch: string;
+    academicField: string;
+    status: string;
+    yearDelivery: number;
+    totalCredits: number;
+    distributedCredits: Record<string, number>;
+    existingSkills?: string[];
+    skills?: string[];
+    learningOutcomes?: Record<string, string[]>[];
     createdAt: Date;
     updatedAt: Date;
+    userId: string;
 }
 
 export interface ITitleMemoryFilter {
-    titleCode?: number;
+    titleCode?: string;
     universities?: string[];
     centers?: string[];
     name?: string;
