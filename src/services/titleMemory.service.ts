@@ -33,7 +33,7 @@ export default class TitleMemoryService {
         try {
             // 1. Validar skills existentes si las hay
             if (titleMemoryData.existingSkills && titleMemoryData.existingSkills.length > 0) {
-                const areSkillsValid = await validateSkills(titleMemoryData.existingSkills);
+                const [areSkillsValid, _] = await validateSkills(titleMemoryData.existingSkills);
                 if (!areSkillsValid) {
                     throw new Error('Invalid existing skills');
                 }
@@ -71,7 +71,7 @@ export default class TitleMemoryService {
             // Procesar existing learning outcomes
             if ((titleMemoryData.existinglearningOutcomes ?? []).length !== 0) {
                 const outcomeIds = (titleMemoryData.existinglearningOutcomes ?? []).map(o => Object.keys(o)[0]);
-                const areOutcomesValid = await validateLearningOutcomes(outcomeIds);
+                const [areOutcomesValid, _] = await validateLearningOutcomes(outcomeIds);
                 if (!areOutcomesValid) throw new Error('Invalid existing learning outcomes');
                 for (const outcome of (titleMemoryData.existinglearningOutcomes ?? [])) {
                     const outcomeId = Object.keys(outcome)[0];
