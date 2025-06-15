@@ -22,7 +22,7 @@ export interface ILearningOutcome extends ILearningOutcomeInput {
 }
 
 export interface ITitleMemoryInput {
-    titleCode: number;
+    titleCode: string;
     universities: string[];
     centers: string[];
     name: string;
@@ -46,7 +46,7 @@ export interface ITitleMemory extends ITitleMemoryInput, Document {
 }
 
 export interface ITitleMemoryFilter {
-    titleCode?: number;
+    titleCode?: string;
     universities?: string[];
     centers?: string[];
     name?: string;

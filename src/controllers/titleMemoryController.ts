@@ -21,7 +21,7 @@ export const getAll = async (req: Request, res: Response) => {
         const result = await TitleMemoryService.getAll({}, paginationOptions);
         res.json(result);
     } catch (error) {
-        console.error(error);
+
         res.status(500).json({ message: 'Internal server error' });
     }
 }
@@ -42,7 +42,7 @@ export const bulkCreate = async (req: Request, res: Response) => {
         const result = await TitleMemoryService.bulkCreate(titleMemories);
         res.status(201).json(result);
     } catch (error) {
-        console.error(error);
+
         res.status(500).json({ message: 'Internal server error' });
     }
 }
@@ -63,7 +63,7 @@ export const create = async (req: Request, res: Response) => {
         const result = await TitleMemoryService.create(titleMemoryData);
         res.status(201).json(result);
     } catch (error: any) {
-        console.error(error);
+
         const status = error.message.includes('Invalid') ? 400 : 500;
         res.status(status).json({ message: error.message });
     }
@@ -87,7 +87,7 @@ export const update = async (req: Request, res: Response) => {
 
         res.json(result);
     } catch (error) {
-        console.error(error);
+
         res.status(500).json({ message: 'Internal server error' });
     }
 }
@@ -109,7 +109,7 @@ export const deleteMemory = async (req: Request, res: Response) => {
 
         res.json({ message: 'Title memory deleted successfully' });
     } catch (error) {
-        console.error(error);
+
         res.status(500).json({ message: 'Internal server error' });
     }
 }
@@ -125,7 +125,7 @@ export const getById = async (req: Request, res: Response) => {
 
         res.json(result);
     } catch (error) {
-        console.error(error);
+
         res.status(500).json({ message: 'Internal server error' });
     }
 }
@@ -147,7 +147,7 @@ export const getByUserId = async (req: Request, res: Response) => {
         const result = await TitleMemoryService.getByUserId(userId, paginationOptions);
         res.json(result);
     } catch (error) {
-        console.error(error);
+
         res.status(500).json({ message: 'Internal server error' });
     }
 }
@@ -199,7 +199,6 @@ export const search = async (req: Request, res: Response) => {
         const result = await TitleMemoryService.search(filter, paginationOptions);
         res.json(result);
     } catch (error) {
-        console.error('Search error:', error);
         res.status(500).json({
             message: 'Internal server error'
         });
@@ -218,7 +217,7 @@ export const checkTitleUser = async (req: Request, res: Response) => {
 
         res.status(401).json({ message: 'El titulo no pertenece a este usuario' });
     } catch (error) {
-        console.error(error);
+
         res.status(500).json({ message: 'Internal server error' });
     }
 }
@@ -234,7 +233,7 @@ export const validateSkillsFromTitle = async (req: Request, res: Response) => {
 
         res.status(401).json({ message: 'El titulo no tiene habilidades asociadas' });
     } catch (error) {
-        console.error(error);
+
         res.status(500).json({ message: 'Internal server error' });
     }
 }
@@ -251,7 +250,7 @@ export const validateOutcomesFromTitle = async (req: Request, res: Response) => 
 
         res.status(401).json({ message: 'El titulo no tiene resultados de aprendizaje asociados' });
     } catch (error) {
-        console.error(error);
+
         res.status(500).json({ message: 'Internal server error' });
     }
 }

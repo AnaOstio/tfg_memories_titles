@@ -2,7 +2,7 @@ import { Schema, model } from 'mongoose';
 import { ITitleMemory } from '../interfaces/titleMemory.interface';
 
 const TitleMemorySchema = new Schema<ITitleMemory>({
-    titleCode: { type: Number, required: true, unique: true },
+    titleCode: { type: String, required: true },
     universities: { type: [String], required: true },
     centers: { type: [String], required: true },
     name: { type: String, required: true },
