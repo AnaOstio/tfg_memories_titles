@@ -9,42 +9,42 @@ const router = Router();
 
 // Rutas públicas
 /**
- * @openapi
- * /title-memories:
- *   get:
- *     tags:
- *       - TitleMemories
- *     summary: Retrieve all title memories with pagination
- *     parameters:
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           default: 1
- *         description: Page number
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 10
- *         description: Items per page
- *     responses:
- *       200:
- *         description: A paginated list of title memories
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/TitleMemory'
- *                 pagination:
- *                   $ref: '#/components/schemas/Pagination'
- *       500:
- *         description: Internal server error
- */
+* @openapi
+* /title-memories:
+*   get:
+*     tags:
+*       - TitleMemories
+*     summary: Retrieve all title memories with pagination
+*     parameters:
+*       - in: query
+*         name: page
+*         schema:
+*           type: integer
+*           default: 1
+*         description: Page number
+*       - in: query
+*         name: limit
+*         schema:
+*           type: integer
+*           default: 10
+*         description: Items per page
+*     responses:
+*       200:
+*         description: A paginated list of title memories
+*         content:
+*           application/json:
+*             schema:
+*               type: object
+*               properties:
+*                 data:
+*                   type: array
+*                   items:
+*                     $ref: '#/components/schemas/TitleMemory'
+*                 pagination:
+*                   $ref: '#/components/schemas/Pagination'
+*       500:
+*         description: Internal server error
+*/
 router.get('/', getAll);
 
 /**
