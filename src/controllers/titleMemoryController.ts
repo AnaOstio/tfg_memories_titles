@@ -3,6 +3,7 @@ import TitleMemoryService from '../services/titleMemory.service';
 import {
     ITitleMemory,
     ITitleMemoryFilter,
+    ITitleMemoryInput,
     ITitleMemorySearchParams,
 } from '../interfaces/titleMemory.interface';
 import { IPaginationOptions } from '../interfaces/pagination.interface';
@@ -55,7 +56,7 @@ export const create = async (req: Request, res: Response) => {
         const { isValid, userId } = await validateToken(token);
         if (!isValid || !userId) return res.status(401).json({ message: 'Invalid token' });
 
-        const titleMemoryData: ITitleMemory = {
+        const titleMemoryData: ITitleMemoryInput = {
             ...req.body,
             userId
         };
