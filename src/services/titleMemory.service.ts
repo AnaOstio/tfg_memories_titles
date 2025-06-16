@@ -127,7 +127,11 @@ export default class TitleMemoryService {
     }
 
     static async getById(id: string): Promise<ITitleMemory | null> {
-        return await TitleMemory.findById(id);
+        const a = await TitleMemory.findById(id).lean();
+        if (!a) {
+            throw new Error('Title memory not found');
+        }
+        return a;
     }
 
     static async getByUserId(userId: string, paginationOptions: IPaginationOptions): Promise<IPaginatedResult<ITitleMemory>> {

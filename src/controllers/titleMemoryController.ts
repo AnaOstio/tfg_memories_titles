@@ -9,6 +9,7 @@ import {
 import { IPaginationOptions } from '../interfaces/pagination.interface';
 import { validateToken } from '../services/auth.services';
 import { } from '../interfaces/titleMemory.interface';
+import { getLearningOutcomesByIds, getSkillsByIds } from '../services/skillLearningOutcome.servie';
 
 
 export const getAll = async (req: Request, res: Response) => {
@@ -123,6 +124,13 @@ export const getById = async (req: Request, res: Response) => {
         if (!result) {
             return res.status(404).json({ message: 'Title memory not found' });
         }
+
+        // ahora pedimos los skills y los learning outcomes
+        const skills = await getSkillsByIds(result.skills?.map(s => s.toString()) || []);
+        const outcomeIds = result.learningOutcomes?.map(item => Object.keys(item)[0]);
+        const learningOutcomes = await getLearningOutcomesByIds(outcomeIds || []);
+        result.skills = skills;
+        result.learningOutcomes = learningOutcomes;
 
         res.json(result);
     } catch (error) {
