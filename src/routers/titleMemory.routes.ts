@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import {
-    bulkCreate, checkTitleUser, create, deleteMemory, getAll,
+    bulkCreate, checkTitleUser, create, createFromFiles, deleteMemory, getAll,
     getById, getByUserId, search, update, validateOutcomesFromTitle,
     validateSkillsFromTitle
 } from '../controllers/titleMemoryController';
+import { uploadMemory } from '../config/upload';
 
 const router = Router();
 
@@ -418,5 +419,7 @@ router.post('/validate-skills', validateSkillsFromTitle);
  *         description: Internal server error
  */
 router.post('/validate-lerning-outcomes', validateOutcomesFromTitle);
+
+router.post('/from-file', uploadMemory.array('files'), createFromFiles);
 
 export default router;

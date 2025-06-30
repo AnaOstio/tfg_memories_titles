@@ -9,6 +9,7 @@ import {
 import { paginate } from '../utils/pagination';
 import { validateSkills, createSkills, createLearningOutcomes, validateLearningOutcomes } from './skillLearningOutcome.servie';
 import { IPaginatedResult, IPaginationOptions } from '../interfaces/pagination.interface';
+import { randomUUID } from 'node:crypto';
 
 export default class TitleMemoryService {
     static async getAll(
@@ -41,12 +42,19 @@ export default class TitleMemoryService {
 
             // Mapa para generated_id → ID real
             const generatedIdToRealId: Record<string, string> = {};
+            const nameGeneratedId: Record<string, string> = {}
 
             // Procesar skills
             const finalSkills: string[] = [...(titleMemoryData.existingSkills || [])];
 
             // 2. Crear nuevas skills si existen
             if (titleMemoryData.skills && Array.isArray(titleMemoryData.skills)) {
+                if (titleMemoryData.skills.every(s => !s.hasOwnProperty('generated_id'))) {
+                    titleMemoryData.skills.map((skill: any) => {
+                        skill.generated_id = randomUUID();
+                        nameGeneratedId[skill.name] = skill.generated_id;
+                    });
+                }
                 const newSkillsInput = titleMemoryData.skills as unknown as ISkillInput[];
                 const skillsToCreate = newSkillsInput.map(({ generated_id, ...rest }) => rest);
 
@@ -86,7 +94,7 @@ export default class TitleMemoryService {
                 const newOutcomesInput = titleMemoryData.learningOutcomes as unknown as ILearningOutcomeInput[];
                 const outcomesToCreate = newOutcomesInput.map(outcome => ({
                     ...outcome,
-                    skills_id: outcome.skills_id.map(id => generatedIdToRealId[id] || id)
+                    skills_id: outcome.skills_id.map(id => generatedIdToRealId[id] || generatedIdToRealId[nameGeneratedId[id]] || id)
                 }));
 
 

@@ -10,6 +10,8 @@ import { IPaginationOptions } from '../interfaces/pagination.interface';
 import { validateToken } from '../services/auth.services';
 import { } from '../interfaces/titleMemory.interface';
 import { getLearningOutcomesByIds, getSkillsByIds } from '../services/skillLearningOutcome.servie';
+import path from 'path';
+import fs from 'fs/promises';
 
 
 export const getAll = async (req: Request, res: Response) => {
@@ -263,3 +265,99 @@ export const validateOutcomesFromTitle = async (req: Request, res: Response) => 
         res.status(500).json({ message: 'Internal server error' });
     }
 }
+
+
+const REQUIRED_KEYS = [
+    'titleCode',
+    'universities',
+    'centers',
+    'name',
+    'academicLevel',
+    'branch',
+    'academicField',
+    'status',
+    'yearDelivery',
+    'totalCredits',
+    'distributedCredits',
+    'skills',
+    'learningOutcomes'
+];
+
+
+function validateStructure(item: any, idx: number): string[] {
+    const errs: string[] = [];
+    if (typeof item !== 'object' || item === null) {
+        errs.push(`Ítem ${idx}: no es un objeto.`);
+        return errs;
+    }
+    for (const key of REQUIRED_KEYS) {
+        if (!(key in item)) {
+            errs.push(`Ítem ${idx}: falta la propiedad "${key}".`);
+        }
+    }
+    if ('titleCode' in item && typeof item.titleCode !== 'string') {
+        errs.push(`Ítem ${idx}: "titleCode" debe ser string, no ${typeof item.titleCode}.`);
+    }
+    return errs;
+}
+
+export const createFromFiles = async (req: Request, res: Response) => {
+    try {
+        // 1) Autenticación
+        const auth = req.headers.authorization?.split(' ')[1];
+        if (!auth) return res.status(401).json({ message: 'No token provided' });
+
+        const { isValid, userId } = await validateToken(auth);
+        if (!isValid || !userId) return res.status(401).json({ message: 'Invalid token' });
+
+        // 2) Archivos
+        const files = req.files as Express.Multer.File[] | undefined;
+        if (!files || files.length === 0) {
+            return res.status(400).json({ message: 'No files provided' });
+        }
+
+        const created: any[] = [];
+
+        for (const file of files) {
+            // 3) Leer y parsear
+            const raw = file.buffer.toString("utf-8");
+            let jsonArray: any;
+            try {
+                jsonArray = JSON.parse(raw);
+            } catch {
+                return res.status(400).json({ message: `Archivo ${file.originalname}: JSON inválido` });
+            }
+
+            // 4) Validar esquema
+            if (!Array.isArray(jsonArray)) {
+                return res
+                    .status(400)
+                    .json({ message: `Archivo ${file.originalname}: debe ser un array de objetos` });
+            }
+            for (let i = 0; i < jsonArray.length; i++) {
+                const errors = validateStructure(jsonArray[i], i);
+                if (errors.length) {
+                    return res
+                        .status(400)
+                        .json({ message: `Errores en ${file.originalname}: ${errors.join('; ')}` });
+                }
+            }
+
+            // 5) Crear cada memoria de título
+            for (const rawItem of jsonArray) {
+                const itemWithUser = { ...rawItem, userId };
+                // TitleMemoryService.create implementa validación de skills y outcomes
+                const createdMem = await TitleMemoryService.create(itemWithUser);
+                created.push(createdMem);
+            }
+        }
+
+        // 7) Respuesta
+        return res.status(201).json(created);
+    } catch (err: any) {
+        console.error('Error en createFromFiles:', err);
+        return res
+            .status(500)
+            .json({ message: 'Internal server error', error: err.message || err.toString() });
+    }
+};
