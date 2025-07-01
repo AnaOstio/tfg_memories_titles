@@ -12,6 +12,7 @@ import { } from '../interfaces/titleMemory.interface';
 import { getLearningOutcomesByIds, getSkillsByIds } from '../services/skillLearningOutcome.servie';
 import path from 'path';
 import fs from 'fs/promises';
+import { getPermissionsByUser } from '../services/permissions.service';
 
 
 export const getAll = async (req: Request, res: Response) => {
@@ -149,14 +150,22 @@ export const getByUserId = async (req: Request, res: Response) => {
         const { isValid, userId } = await validateToken(token);
         if (!isValid || !userId) return res.status(401).json({ message: 'Invalid token' });
 
+        // Tenemos que ir a permisos a comprobar cuales son los que tiene de usuario
+        const permissions = await getPermissionsByUser(token);
+        const memories = permissions?.data.map((p: any) => p.memoryId) || [];
+
         const { page = 1, limit = 10 } = req.query;
         const paginationOptions: IPaginationOptions = {
             page: Number(page),
             limit: Number(limit)
         };
 
-        const result = await TitleMemoryService.getByUserId(userId, paginationOptions);
-        res.json(result);
+        const result = await TitleMemoryService.getByUserId(memories, paginationOptions);
+        const toReturn = {
+            result,
+            permissions: permissions?.data || []
+        }
+        res.json(toReturn);
     } catch (error) {
 
         res.status(500).json({ message: 'Internal server error' });

@@ -142,8 +142,9 @@ export default class TitleMemoryService {
         return a;
     }
 
-    static async getByUserId(userId: string, paginationOptions: IPaginationOptions): Promise<IPaginatedResult<ITitleMemory>> {
-        const query = TitleMemory.find({ userId });
+    static async getByUserId(memories: string[], paginationOptions: IPaginationOptions): Promise<IPaginatedResult<ITitleMemory>> {
+        const query = TitleMemory.find({ _id: { $in: memories } })
+            .sort({ yearDelivery: -1, name: 1 });
         return await paginate<ITitleMemory>(query, paginationOptions);
     }
 
