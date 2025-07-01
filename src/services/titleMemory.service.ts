@@ -132,7 +132,11 @@ export default class TitleMemoryService {
     }
 
     static async delete(id: string): Promise<ITitleMemory | null> {
-        return await TitleMemory.findByIdAndDelete(id);
+        return await TitleMemory.findByIdAndUpdate(
+            id,
+            { status: 'deleted' },
+            { new: true }
+        );
     }
 
     static async getById(id: string): Promise<ITitleMemory | null> {
@@ -202,6 +206,9 @@ export default class TitleMemoryService {
             if (filter.titleMemoriesToReturn?.length) {
                 queryConditions._id = { $in: filter.titleMemoriesToReturn };
             }
+
+            // 7. Filtro por estado (excluyendo "deleted")
+            queryConditions.status = { $ne: 'deleted' };
 
             // 6. Construir la consulta con posible ordenación
             const query = TitleMemory.find(queryConditions)

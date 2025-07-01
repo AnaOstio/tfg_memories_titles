@@ -14,6 +14,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { getPermissionsByUser } from '../services/permissions.service';
 import mongoose, { Types } from 'mongoose';
+import { changeStatusSubjects } from '../services/subject.service';
 
 
 export const getAll = async (req: Request, res: Response) => {
@@ -112,6 +113,13 @@ export const deleteMemory = async (req: Request, res: Response) => {
         if (!result) {
             return res.status(404).json({ message: 'Title memory not found' });
         }
+
+        // Asignaturas tienen que pasar al estado de borrado
+        const data = {
+            titleMemoryId: id,
+            status: 'deleted'
+        };
+        await changeStatusSubjects(token, data);
 
         res.json({ message: 'Title memory deleted successfully' });
     } catch (error) {
