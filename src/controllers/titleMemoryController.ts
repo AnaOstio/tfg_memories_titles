@@ -13,6 +13,7 @@ import { getLearningOutcomesByIds, getSkillsByIds } from '../services/skillLearn
 import path from 'path';
 import fs from 'fs/promises';
 import { getPermissionsByUser } from '../services/permissions.service';
+import mongoose, { Types } from 'mongoose';
 
 
 export const getAll = async (req: Request, res: Response) => {
@@ -194,6 +195,12 @@ export const search = async (req: Request, res: Response) => {
         if (filters.universities?.length) filter.universities = filters.universities;
         if (filters.centers?.length) filter.centers = filters.centers;
 
+        // Manejar el rango de años
+        if (filters.year?.length === 2) {
+            filter.yearFrom = Math.min(...filters.year);
+            filter.yearTo = Math.max(...filters.year);
+        }
+
         // Necesito sacar solo las del usuario si esta a true
         if (fromUser) {
             const token = req.headers.authorization?.split(' ')[1];
@@ -202,13 +209,10 @@ export const search = async (req: Request, res: Response) => {
             const { isValid, userId } = await validateToken(token);
             if (!isValid || !userId) return res.status(401).json({ message: 'Invalid token' });
 
-            filter.userId = userId;
-        }
+            const permissions = await getPermissionsByUser(token);
 
-        // Manejar el rango de años
-        if (filters.year?.length === 2) {
-            filter.yearFrom = Math.min(...filters.year);
-            filter.yearTo = Math.max(...filters.year);
+            filter.titleMemoriesToReturn = permissions.data
+                .map((t: any) => new mongoose.Types.ObjectId(String(t.memoryId))) || [];
         }
 
         const paginationOptions: IPaginationOptions = {

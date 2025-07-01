@@ -10,6 +10,7 @@ import { paginate } from '../utils/pagination';
 import { validateSkills, createSkills, createLearningOutcomes, validateLearningOutcomes } from './skillLearningOutcome.servie';
 import { IPaginatedResult, IPaginationOptions } from '../interfaces/pagination.interface';
 import { randomUUID } from 'node:crypto';
+import { Types } from 'mongoose';
 
 export default class TitleMemoryService {
     static async getAll(
@@ -198,8 +199,8 @@ export default class TitleMemoryService {
             }
 
             // 6. Filtro por ID de usuario (si se proporciona)
-            if (filter.userId) {
-                queryConditions.userId = filter.userId;
+            if (filter.titleMemoriesToReturn?.length) {
+                queryConditions._id = { $in: filter.titleMemoriesToReturn };
             }
 
             // 6. Construir la consulta con posible ordenación

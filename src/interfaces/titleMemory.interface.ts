@@ -69,6 +69,7 @@ export interface ITitleMemoryFilter {
     yearTo?: number;
     yearFrom?: number;
     userId?: string;
+    titleMemoriesToReturn?: string[];
 }
 
 export interface ITitleMemorySearchParams {
