@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import TitleMemoryService from '../services/titleMemory.service';
 import {
+    ILearningOutcomeInput,
+    ISkillInput,
     ITitleMemory,
     ITitleMemoryFilter,
     ITitleMemoryInput,
@@ -9,12 +11,13 @@ import {
 import { IPaginationOptions } from '../interfaces/pagination.interface';
 import { validateToken } from '../services/auth.services';
 import { } from '../interfaces/titleMemory.interface';
-import { getLearningOutcomesByIds, getSkillsByIds } from '../services/skillLearningOutcome.servie';
+import { createLearningOutcomes, createSkills, getLearningOutcomesByIds, getSkillsByIds, validateLearningOutcomes, validateSkills } from '../services/skillLearningOutcome.servie';
 import path from 'path';
 import fs from 'fs/promises';
 import { getPermissionsByUser } from '../services/permissions.service';
 import mongoose, { Types } from 'mongoose';
 import { changeStatusSubjects } from '../services/subject.service';
+import { randomUUID } from 'crypto';
 
 
 export const getAll = async (req: Request, res: Response) => {
@@ -85,8 +88,135 @@ export const update = async (req: Request, res: Response) => {
         if (!isValid) return res.status(401).json({ message: 'Invalid token' });
 
         const { id } = req.params;
-        const updateData: Partial<ITitleMemory> = req.body;
-        const result = await TitleMemoryService.update(id, updateData);
+        const updateData: Partial<ITitleMemoryInput> = req.body;
+
+        if (updateData.existingSkills && updateData.existingSkills.length > 0) {
+            const [areSkillsValid, _] = await validateSkills(updateData.existingSkills);
+            if (!areSkillsValid) {
+                throw new Error('Invalid existing skills');
+            }
+        }
+
+        // Mapa para generated_id → ID real
+        const generatedIdToRealId: Record<string, string> = {};
+        const nameGeneratedId: Record<string, string> = {}
+
+        // Procesar skills
+        const finalSkills: string[] = [...(updateData.existingSkills || [])];
+
+        // 2. Crear nuevas skills si existen
+        if (updateData.skills && Array.isArray(updateData.skills)) {
+            if (updateData.skills.every(s => !s.hasOwnProperty('generated_id'))) {
+                updateData.skills.map((skill: any) => {
+                    skill.generated_id = randomUUID();
+                    nameGeneratedId[skill.name] = skill.generated_id;
+                });
+            }
+            const newSkillsInput = updateData.skills as unknown as ISkillInput[];
+            const skillsToCreate = newSkillsInput.map(({ generated_id, ...rest }) => rest);
+
+            if (skillsToCreate.length !== 0) {
+
+                const createdSkills = await createSkills(skillsToCreate);
+                // Mapear generated_id a IDs reales
+                newSkillsInput.forEach((skill, index) => {
+                    if (skill.generated_id) {
+                        generatedIdToRealId[skill.generated_id] = createdSkills[index]._id;
+                    }
+                });
+
+                // Agregar IDs al array final
+                finalSkills.push(...createdSkills.map(skill => skill._id));
+            }
+        }
+
+        // 3. Procesar learning outcomes
+        const finalLearningOutcomes: Array<{ [key: string]: string[] }> = [];
+
+        // Procesar existing learning outcomes
+        if ((updateData.existinglearningOutcomes ?? []).length !== 0) {
+            const outcomeIds = (updateData.existinglearningOutcomes ?? []).map(o => Object.keys(o)[0]);
+            const [areOutcomesValid, _] = await validateLearningOutcomes(outcomeIds);
+            if (!areOutcomesValid) throw new Error('Invalid existing learning outcomes');
+            for (const outcome of (updateData.existinglearningOutcomes ?? [])) {
+                const outcomeId = Object.keys(outcome)[0];
+                const skillIds = outcome[outcomeId].map(id => generatedIdToRealId[id] || id);
+                finalLearningOutcomes.push({ [outcomeId]: skillIds });
+            }
+
+        }
+
+        // Procesar nuevos learning outcomes
+        if (updateData.learningOutcomes && Array.isArray(updateData.learningOutcomes)) {
+            const newOutcomesInput = updateData.learningOutcomes as unknown as ILearningOutcomeInput[];
+            const outcomesToCreate = newOutcomesInput.map(outcome => ({
+                ...outcome,
+                skills_id: outcome.skills_id.map(id => generatedIdToRealId[id] || generatedIdToRealId[nameGeneratedId[id]] || id)
+            }));
+
+
+            if (outcomesToCreate.length !== 0) {
+                const createdOutcomes = await createLearningOutcomes(outcomesToCreate);
+
+                createdOutcomes.forEach((outcome, index) => {
+                    const skillIds = newOutcomesInput[index].skills_id
+                        .map(id => generatedIdToRealId[id] || id);
+                    finalLearningOutcomes.push({ [outcome._id]: skillIds });
+                });
+            }
+        }
+
+        // 4. Construir los datos finales para actualizar
+        const finalUpdateData = {
+            ...updateData,
+            skills: finalSkills as any, // Cast to any to satisfy the type checker if only IDs are needed
+            learningOutcomes: finalLearningOutcomes as any,
+            existingSkills: undefined,
+            existinglearningOutcomes: undefined
+        };
+
+        const prevTtile = await TitleMemoryService.getById(id);
+
+        // Ahora tenemos que comparar si las skills y los learning outcomes han cambiado
+        if (prevTtile) {
+            const skillsChanged =
+                JSON.stringify(prevTtile.skills?.sort()) !== JSON.stringify(finalSkills.sort());
+
+            const learningOutcomesChanged =
+                JSON.stringify(
+                    (prevTtile.learningOutcomes || [])
+                        .map(lo => {
+                            const key = Object.keys(lo)[0];
+                            const values = lo[key].slice().sort();
+                            return { [key]: values };
+                        })
+                        .sort((a, b) => Object.keys(a)[0].localeCompare(Object.keys(b)[0]))
+                ) !==
+                JSON.stringify(
+                    (finalLearningOutcomes || [])
+                        .map(lo => {
+                            const key = Object.keys(lo)[0];
+                            const values = lo[key].slice().sort();
+                            return { [key]: values };
+                        })
+                        .sort((a, b) => Object.keys(a)[0].localeCompare(Object.keys(b)[0]))
+                );
+
+            // Puedes usar skillsChanged y learningOutcomesChanged según lo necesites
+            if (skillsChanged || learningOutcomesChanged) {
+                // lo mandamos a subject service para que cambie el estado de las asignaturas
+                const data = {
+                    titleMemoryId: id,
+                    skills: finalSkills,
+                    learningOutcomes: finalLearningOutcomes,
+                    status: 'incomplete'
+                };
+                await changeStatusSubjects(token, data);
+            }
+        }
+
+
+        const result = await TitleMemoryService.update(id, finalUpdateData);
 
         if (!result) {
             return res.status(404).json({ message: 'Title memory not found' });

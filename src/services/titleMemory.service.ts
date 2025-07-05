@@ -11,6 +11,8 @@ import { validateSkills, createSkills, createLearningOutcomes, validateLearningO
 import { IPaginatedResult, IPaginationOptions } from '../interfaces/pagination.interface';
 import { randomUUID } from 'node:crypto';
 import { Types } from 'mongoose';
+import { getById } from '../controllers/titleMemoryController';
+import { changeStatusSubjects } from './subject.service';
 
 export default class TitleMemoryService {
     static async getAll(
@@ -127,8 +129,13 @@ export default class TitleMemoryService {
         }
     }
 
-    static async update(id: string, updateData: Partial<ITitleMemory>): Promise<ITitleMemory | null> {
-        return await TitleMemory.findByIdAndUpdate(id, updateData, { new: true });
+    static async update(id: string, updateData: Partial<ITitleMemoryInput>): Promise<ITitleMemory | null> {
+        try {
+            return await TitleMemory.findByIdAndUpdate(id, updateData, { new: true });
+        } catch (error) {
+            console.error('Error updating title memory:', error);
+            throw error;
+        }
     }
 
     static async delete(id: string): Promise<ITitleMemory | null> {
