@@ -7,12 +7,12 @@ import {
     ITitleMemoryInput
 } from '../interfaces/titleMemory.interface';
 import { paginate } from '../utils/pagination';
-import { validateSkills, createSkills, createLearningOutcomes, validateLearningOutcomes } from './skillLearningOutcome.servie';
+import { validateSkills, createSkills, createLearningOutcomes, validateLearningOutcomes } from './skillLearningOutcome.services';
 import { IPaginatedResult, IPaginationOptions } from '../interfaces/pagination.interface';
 import { randomUUID } from 'node:crypto';
 import { Types } from 'mongoose';
 import { getById } from '../controllers/titleMemoryController';
-import { changeStatusSubjects } from './subject.service';
+import { changeStatusSubjects } from './subject.services';
 
 export default class TitleMemoryService {
     static async getAll(

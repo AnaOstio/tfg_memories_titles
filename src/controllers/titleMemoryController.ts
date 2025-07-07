@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import TitleMemoryService from '../services/titleMemory.service';
+import TitleMemoryService from '../services/titleMemory.services';
 import {
     ILearningOutcomeInput,
     ISkillInput,
@@ -11,10 +11,10 @@ import {
 import { IPaginationOptions } from '../interfaces/pagination.interface';
 import { validateToken } from '../services/auth.services';
 import { } from '../interfaces/titleMemory.interface';
-import { createLearningOutcomes, createSkills, getLearningOutcomesByIds, getSkillsByIds, validateLearningOutcomes, validateSkills } from '../services/skillLearningOutcome.servie';
-import { getPermissionsByUser } from '../services/permissions.service';
+import { createLearningOutcomes, createSkills, getLearningOutcomesByIds, getSkillsByIds, validateLearningOutcomes, validateSkills } from '../services/skillLearningOutcome.services';
+import { getPermissionsByUser } from '../services/permissions.services';
 import mongoose, { Types } from 'mongoose';
-import { changeStatusSubjects } from '../services/subject.service';
+import { changeStatusSubjects } from '../services/subject.services';
 import { randomUUID } from 'crypto';
 
 
