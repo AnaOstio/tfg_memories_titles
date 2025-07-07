@@ -267,4 +267,50 @@ export default class TitleMemoryService {
 
         return true;
     }
+
+    static async changeOutcomes(newOutcomeId: string, oldOutcomeIds: string[]): Promise<any> {
+        if (!newOutcomeId || !oldOutcomeIds?.length) {
+            throw new Error('Debes proporcionar newOutcomeId y al menos un oldOutcomeId');
+        }
+
+        const newOid = new Types.ObjectId(newOutcomeId);
+        const oldOids = oldOutcomeIds.map(id => new Types.ObjectId(id));
+
+        // Solo los documentos que contengan al menos uno de los antiguos
+        const filter = { learningsOutcomes: { $in: oldOids } };
+
+        // Uso de arrayFilters para reemplazar en línea cada elemento coincidente
+        return TitleMemory.updateMany(
+            filter,
+            { $set: { 'learningsOutcomes.$[elem]': newOid } },
+            {
+                arrayFilters: [
+                    { 'elem': { $in: oldOids } }
+                ]
+            }
+        ).exec();
+    }
+
+    static async changeSkills(newSkill: string, lastSkills: string[]): Promise<any> {
+        if (!newSkill || !lastSkills?.length) {
+            throw new Error('Debes proporcionar newOutcomeId y al menos un oldOutcomeId');
+        }
+
+        const newOid = new Types.ObjectId(newSkill);
+        const oldOids = lastSkills.map(id => new Types.ObjectId(id));
+
+        // Solo los documentos que contengan al menos uno de los antiguos
+        const filter = { learningsOutcomes: { $in: oldOids } };
+
+        // Uso de arrayFilters para reemplazar en línea cada elemento coincidente
+        return TitleMemory.updateMany(
+            filter,
+            { $set: { 'skills.$[elem]': newOid } },
+            {
+                arrayFilters: [
+                    { 'elem': { $in: oldOids } }
+                ]
+            }
+        ).exec();
+    }
 }

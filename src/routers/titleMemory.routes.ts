@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import {
-    bulkCreate, checkTitleUser, create, createFromFiles, deleteMemory, getAll,
+    bulkCreate, changeOutcomesSkills, checkTitleUser, create, createFromFiles, deleteMemory, getAll,
     getById, getByUserId, search, update, validateOutcomesFromTitle,
     validateSkillsFromTitle
 } from '../controllers/titleMemoryController';
@@ -187,6 +187,8 @@ router.post('/', create);
  *         description: Internal server error
  */
 router.post('/bulk', bulkCreate);
+
+router.put('/change-outcomes-skills', changeOutcomesSkills)
 
 /**
  * @openapi

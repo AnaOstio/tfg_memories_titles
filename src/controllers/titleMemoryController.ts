@@ -12,8 +12,6 @@ import { IPaginationOptions } from '../interfaces/pagination.interface';
 import { validateToken } from '../services/auth.services';
 import { } from '../interfaces/titleMemory.interface';
 import { createLearningOutcomes, createSkills, getLearningOutcomesByIds, getSkillsByIds, validateLearningOutcomes, validateSkills } from '../services/skillLearningOutcome.servie';
-import path from 'path';
-import fs from 'fs/promises';
 import { getPermissionsByUser } from '../services/permissions.service';
 import mongoose, { Types } from 'mongoose';
 import { changeStatusSubjects } from '../services/subject.service';
@@ -512,3 +510,27 @@ export const createFromFiles = async (req: Request, res: Response) => {
             .json({ message: 'Internal server error', error: err.message || err.toString() });
     }
 };
+
+
+export const changeOutcomesSkills = async (req: Request, res: Response) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) return res.status(401).json({ message: 'No token provided' });
+
+        const { isValid } = await validateToken(token);
+        if (!isValid) return res.status(401).json({ message: 'Invalid token' });
+
+        const { lastOucomes, newOutcome, lastSkill, newSkill } = req.body;
+
+        if (newSkill) {
+            TitleMemoryService.changeSkills(newSkill, lastSkill);
+        } else if (newOutcome) {
+            TitleMemoryService.changeOutcomes(newOutcome, lastOucomes);
+        }
+
+        res.json();
+    } catch (error) {
+        console.error('Error in changeOutcomesSkills:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+}
