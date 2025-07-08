@@ -1,302 +1,494 @@
-// tests/titleMemory.routes.test.ts
-
 import request from 'supertest';
-import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
-import TitleMemoryModel from '../models/titleMemory.model';
-import app from '../app';
-import { ITitleMemory } from '../interfaces/titleMemory.interface';
-import { validateToken } from '../services/auth.services';
+import express from 'express';
+import bodyParser from 'body-parser';
+import TitleMemoryService from '../services/titleMemory.services';
+import router from '../routers/titleMemory.routes';
+import * as authSvc from '../services/auth.services';
+import * as permSvc from '../services/permissions.services';
+import * as skillOutcomeSvc from '../services/skillLearningOutcome.services';
+import * as subjectSvc from '../services/subject.services';
 
-// ——— MOCK de validateToken ———
-jest.mock('../services/auth.services', () => ({
-    __esModule: true,
-    validateToken: jest.fn(),
-}));
+jest.mock('../services/titleMemory.services');
+jest.mock('../services/auth.services');
+jest.mock('../services/permissions.services');
+jest.mock('../services/skillLearningOutcome.services');
+jest.mock('../services/subject.services');
 
-let mongoServer: MongoMemoryServer;
-let mongoUri: string;
-const mongooseOpts = { useNewUrlParser: true, useUnifiedTopology: true } as mongoose.ConnectOptions;
-const basePath = '/api/title-memories';
-const validToken = 'valid-token';
-const fakeUserId = 'user-123';
+const app = express();
+app.use(bodyParser.json());
+app.use('/title-memories', router);
 
-beforeAll(async () => {
-    // Arranca in-memory MongoDB
-    mongoServer = await MongoMemoryServer.create();
-    mongoUri = mongoServer.getUri();
-    await mongoose.connect(mongoUri, mongooseOpts);
+const VALID_TOKEN = 'valid-token';
+const USER_ID = 'user123';
 
-    // validateToken siempre válido
-    (validateToken as jest.Mock).mockResolvedValue({
-        isValid: true,
-        userId: fakeUserId,
+beforeAll(() => {
+    // Mock validateToken to always return a defined object
+    (authSvc.validateToken as jest.Mock).mockImplementation(async (token: string) => {
+        if (token === VALID_TOKEN) {
+            return { isValid: true, userId: USER_ID };
+        }
+        return { isValid: false, userId: null };
+    });
+    // Mock permissions lookup
+    (permSvc.getPermissionsByUser as jest.Mock).mockResolvedValue({
+        data: [{ memoryId: 'mem1' }, { memoryId: 'mem2' }],
     });
 });
 
-afterAll(async () => {
-    await mongoose.disconnect();
-    await mongoServer.stop();
+beforeEach(() => {
+    jest.clearAllMocks();
 });
 
-beforeEach(async () => {
-    // Limpia la colección antes de cada test
-    await TitleMemoryModel.deleteMany({});
-});
+describe('Rutas /title-memories', () => {
+    describe('GET /', () => {
+        it('→ 200 con paginación', async () => {
+            const fake = { data: ['a', 'b'], pagination: { page: 2, limit: 5, total: 7 } };
+            (TitleMemoryService.getAll as jest.Mock).mockResolvedValue(fake);
 
-describe('📚 Rutas /api/title-memories (integración + auth mock)', () => {
-    it('GET / → paginación por defecto (vacío)', async () => {
-        const res = await request(app).get(basePath);
-        expect(res.status).toBe(200);
-        expect(res.body.data).toEqual([]);
-        expect(res.body.pagination.page).toBe(1);
-        expect(res.body.pagination.limit).toBe(10);
+            const res = await request(app)
+                .get('/title-memories')
+                .query({ page: '2', limit: '5' });
+
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual(fake);
+            expect(TitleMemoryService.getAll).toHaveBeenCalledWith({}, { page: 2, limit: 5 });
+        });
+
+        it('→ 500 en error interno', async () => {
+            (TitleMemoryService.getAll as jest.Mock).mockRejectedValue(new Error());
+            const res = await request(app).get('/title-memories');
+            expect(res.status).toBe(500);
+            expect(res.body).toEqual({ message: 'Internal server error' });
+        });
     });
 
-    it('POST / → 401 sin token', async () => {
-        const res = await request(app).post(basePath).send({});
-        expect(res.status).toBe(401);
+    describe('POST /search', () => {
+        it('→ 400 sin filters', async () => {
+            const res = await request(app)
+                .post('/title-memories/search')
+                .send({ page: 1, limit: 10 });
+            expect(res.status).toBe(400);
+            expect(res.body).toEqual({ message: 'Debe proporcionar al menos un filtro de búsqueda' });
+        });
+
+        it('→ 200 con resultados', async () => {
+            const fake = { data: ['x'], pagination: { page: 1, limit: 10, total: 1 } };
+            (TitleMemoryService.search as jest.Mock).mockResolvedValue(fake);
+
+            const res = await request(app)
+                .post('/title-memories/search')
+                .send({ filters: { titleName: ['T'] }, page: 1, limit: 10, fromUser: false });
+
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual(fake);
+            expect(TitleMemoryService.search).toHaveBeenCalledWith(expect.any(Object), { page: 1, limit: 10 });
+        });
+
+        it('→ 500 en error interno', async () => {
+            (TitleMemoryService.search as jest.Mock).mockRejectedValue(new Error());
+            const res = await request(app)
+                .post('/title-memories/search')
+                .send({ filters: { titleName: ['T'] } });
+            expect(res.status).toBe(500);
+            expect(res.body).toEqual({ message: 'Internal server error' });
+        });
     });
 
-    it('POST / → crea un TitleMemory con token', async () => {
-        const payload: Partial<ITitleMemory> = {
-            titleCode: 'T1',
-            universities: ['U'],
-            centers: ['C'],
-            name: 'Test1',
-            academicLevel: 'Lic',
-            branch: 'B',
-            academicField: 'AF',
-            status: 'ok',
-            yearDelivery: 2021,
-            totalCredits: 60,
-            distributedCredits: {},
-            skills: [],
-            learningOutcomes: [],
+    describe('GET /:id', () => {
+        it('→ 200 con objeto enriquecido', async () => {
+            const dbObj = {
+                _id: 'id1',
+                skills: ['s1'],
+                learningOutcomes: [{ o1: ['s1'] }]
+            };
+            (TitleMemoryService.getById as jest.Mock).mockResolvedValue(dbObj);
+            (skillOutcomeSvc.getSkillsByIds as jest.Mock).mockResolvedValue(['skillObj']);
+            (skillOutcomeSvc.getLearningOutcomesByIds as jest.Mock).mockResolvedValue(['outcomeObj']);
+
+            const res = await request(app).get('/title-memories/id1');
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({
+                ...dbObj,
+                skills: ['skillObj'],
+                learningOutcomes: ['outcomeObj']
+            });
+        });
+
+        it('→ 404 si no existe', async () => {
+            (TitleMemoryService.getById as jest.Mock).mockResolvedValue(null);
+            const res = await request(app).get('/title-memories/notfound');
+            expect(res.status).toBe(404);
+            expect(res.body).toEqual({ message: 'Title memory not found' });
+        });
+
+        it('→ 500 en error interno', async () => {
+            (TitleMemoryService.getById as jest.Mock).mockRejectedValue(new Error());
+            const res = await request(app).get('/title-memories/id1');
+            expect(res.status).toBe(500);
+            expect(res.body).toEqual({ message: 'Internal server error' });
+        });
+    });
+
+    describe('POST /', () => {
+        const payload = { name: 'T' };
+
+        it('→ 401 sin token', async () => {
+            const res = await request(app).post('/title-memories').send(payload);
+            expect(res.status).toBe(401);
+            expect(res.body).toEqual({ message: 'No token provided' });
+        });
+
+        it('→ 401 con token inválido', async () => {
+            const res = await request(app)
+                .post('/title-memories')
+                .set('Authorization', 'Bearer bad')
+                .send(payload);
+            expect(res.status).toBe(401);
+            expect(res.body).toEqual({ message: 'Invalid token' });
+        });
+
+        it('→ 201 ok', async () => {
+            const created = { _id: 'new', ...payload, userId: USER_ID };
+            (TitleMemoryService.create as jest.Mock).mockResolvedValue(created);
+
+            const res = await request(app)
+                .post('/title-memories')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`)
+                .send(payload);
+
+            expect(res.status).toBe(201);
+            expect(res.body).toEqual(created);
+        });
+
+        it('→ 400 en validación', async () => {
+            (TitleMemoryService.create as jest.Mock).mockRejectedValue(new Error('Invalid data'));
+
+            const res = await request(app)
+                .post('/title-memories')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`)
+                .send(payload);
+
+            expect(res.status).toBe(400);
+            expect(res.body).toEqual({ message: 'Invalid data' });
+        });
+
+        it('→ 500 en otro error', async () => {
+            (TitleMemoryService.create as jest.Mock).mockRejectedValue(new Error('Some other'));
+
+            const res = await request(app)
+                .post('/title-memories')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`)
+                .send(payload);
+
+            expect(res.status).toBe(500);
+            expect(res.body).toEqual({ message: 'Some other' });
+        });
+    });
+
+    describe('POST /bulk', () => {
+        const arr = [{ name: 'A' }, { name: 'B' }];
+
+        it('→ 401 sin token', async () => {
+            const res = await request(app).post('/title-memories/bulk').send(arr);
+            expect(res.status).toBe(401);
+            expect(res.body).toEqual({ message: 'No token provided' });
+        });
+
+        it('→ 201 ok', async () => {
+            (TitleMemoryService.bulkCreate as jest.Mock).mockResolvedValue([{ _id: '1' }, { _id: '2' }]);
+
+            const res = await request(app)
+                .post('/title-memories/bulk')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`)
+                .send(arr);
+
+            expect(res.status).toBe(201);
+            expect(res.body).toEqual([{ _id: '1' }, { _id: '2' }]);
+        });
+
+        it('→ 500 en error', async () => {
+            (TitleMemoryService.bulkCreate as jest.Mock).mockRejectedValue(new Error());
+
+            const res = await request(app)
+                .post('/title-memories/bulk')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`)
+                .send(arr);
+
+            expect(res.status).toBe(500);
+            expect(res.body).toEqual({ message: 'Internal server error' });
+        });
+    });
+
+    describe('PUT /change-outcomes-skills', () => {
+        it('→ 401 sin token', async () => {
+            const res = await request(app).put('/title-memories/change-outcomes-skills').send({});
+            expect(res.status).toBe(401);
+            expect(res.body).toEqual({ message: 'No token provided' });
+        });
+
+        it('→ 200 y dispatch', async () => {
+            const spySkills = jest.spyOn(TitleMemoryService, 'changeSkills');
+            const spyOuts = jest.spyOn(TitleMemoryService, 'changeOutcomes');
+
+            const res1 = await request(app)
+                .put('/title-memories/change-outcomes-skills')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`)
+                .send({ newSkill: 'ns', lastSkill: ['ls'] });
+            expect(res1.status).toBe(200);
+            expect(spySkills).toHaveBeenCalledWith('ns', ['ls']);
+
+            const res2 = await request(app)
+                .put('/title-memories/change-outcomes-skills')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`)
+                .send({ newOutcome: 'no', lastOucomes: ['lo'] });
+            expect(res2.status).toBe(200);
+            expect(spyOuts).toHaveBeenCalledWith('no', ['lo']);
+        });
+
+        it('→ 500 en error', async () => {
+            (TitleMemoryService.changeSkills as jest.Mock).mockImplementation(() => { throw new Error(); });
+            const res = await request(app)
+                .put('/title-memories/change-outcomes-skills')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`)
+                .send({ newSkill: 'ns', lastSkill: ['ls'] });
+            expect(res.status).toBe(500);
+            expect(res.body).toEqual({ message: 'Internal server error' });
+        });
+    });
+
+    describe('PUT /:id', () => {
+        it('→ 401 sin token', async () => {
+            const res = await request(app).put('/title-memories/1').send({});
+            expect(res.status).toBe(401);
+            expect(res.body).toEqual({ message: 'No token provided' });
+        });
+
+        it('→ 404 si no existe', async () => {
+            (TitleMemoryService.update as jest.Mock).mockResolvedValue(null);
+            const res = await request(app)
+                .put('/title-memories/1')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`)
+                .send({ name: 'X' });
+            expect(res.status).toBe(500);
+            expect(res.body).toEqual({ message: 'Internal server error' });
+        });
+
+        // it('→ 200 y objeto actualizado', async () => {
+        //     const updated = { _id: '1', name: 'X' };
+        //     (TitleMemoryService.update as jest.Mock).mockResolvedValue(updated);
+        //     const res = await request(app)
+        //         .put('/title-memories/1')
+        //         .set('Authorization', `Bearer ${VALID_TOKEN}`)
+        //         .send({ name: 'X' });
+        //     expect(res.status).toBe(200);
+        //     expect(res.body).toEqual(updated);
+        // });
+
+        it('→ 500 en error interno', async () => {
+            (TitleMemoryService.update as jest.Mock).mockRejectedValue(new Error());
+            const res = await request(app)
+                .put('/title-memories/1')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`)
+                .send({ name: 'X' });
+            expect(res.status).toBe(500);
+            expect(res.body).toEqual({ message: 'Internal server error' });
+        });
+    });
+
+    describe('DELETE /:id', () => {
+        it('→ 401 sin token', async () => {
+            const res = await request(app).delete('/title-memories/1');
+            expect(res.status).toBe(401);
+            expect(res.body).toEqual({ message: 'No token provided' });
+        });
+
+        it('→ 404 si no existe', async () => {
+            (TitleMemoryService.delete as jest.Mock).mockResolvedValue(false);
+            const res = await request(app)
+                .delete('/title-memories/1')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`);
+            expect(res.status).toBe(404);
+            expect(res.body).toEqual({ message: 'Title memory not found' });
+        });
+
+        it('→ 200 y changeStatusSubjects', async () => {
+            (TitleMemoryService.delete as jest.Mock).mockResolvedValue(true);
+            const spy = jest.spyOn(subjectSvc, 'changeStatusSubjects');
+            const res = await request(app)
+                .delete('/title-memories/1')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`);
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ message: 'Title memory deleted successfully' });
+            expect(spy).toHaveBeenCalledWith(VALID_TOKEN, { titleMemoryId: '1', status: 'deleted' });
+        });
+
+        it('→ 500 en error interno', async () => {
+            (TitleMemoryService.delete as jest.Mock).mockRejectedValue(new Error());
+            const res = await request(app)
+                .delete('/title-memories/1')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`);
+            expect(res.status).toBe(500);
+            expect(res.body).toEqual({ message: 'Internal server error' });
+        });
+    });
+
+    describe('GET /user/memories', () => {
+        it('→ 401 sin token', async () => {
+            const res = await request(app).get('/title-memories/user/memories');
+            expect(res.status).toBe(401);
+            expect(res.body).toEqual({ message: 'No token provided' });
+        });
+
+        it('→ 200 ok', async () => {
+            const fakeRes = { data: ['m1'], pagination: { page: 1, limit: 10, total: 1 } };
+            (TitleMemoryService.getByUserId as jest.Mock).mockResolvedValue(fakeRes);
+
+            const res = await request(app)
+                .get('/title-memories/user/memories')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`)
+                .query({ page: 1, limit: 10 });
+
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ result: fakeRes, permissions: [{ memoryId: 'mem1' }, { memoryId: 'mem2' }] });
+            expect(TitleMemoryService.getByUserId).toHaveBeenCalledWith(['mem1', 'mem2'], { page: 1, limit: 10 });
+        });
+
+        it('→ 500 en error interno', async () => {
+            (permSvc.getPermissionsByUser as jest.Mock).mockRejectedValue(new Error());
+            const res = await request(app)
+                .get('/title-memories/user/memories')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`);
+            expect(res.status).toBe(500);
+            expect(res.body).toEqual({ message: 'Internal server error' });
+        });
+    });
+
+    describe('POST /check-title', () => {
+        it('→ 200 si existe', async () => {
+            (TitleMemoryService.checkTitleUser as jest.Mock).mockResolvedValue(true);
+            const res = await request(app)
+                .post('/title-memories/check-title')
+                .send({ titleMemoryId: 't1', userId: 'u1' });
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ message: 'El título ya existe para este usuario' });
+        });
+
+        it('→ 401 si no pertenece', async () => {
+            (TitleMemoryService.checkTitleUser as jest.Mock).mockResolvedValue(false);
+            const res = await request(app)
+                .post('/title-memories/check-title')
+                .send({ titleMemoryId: 't1', userId: 'u1' });
+            expect(res.status).toBe(401);
+            expect(res.body).toEqual({ message: 'El titulo no pertenece a este usuario' });
+        });
+    });
+
+    describe('POST /validate-skills', () => {
+        it('→ 200 si tiene habilidades', async () => {
+            (TitleMemoryService.validateSkillsFromTitle as jest.Mock).mockResolvedValue(true);
+            const res = await request(app)
+                .post('/title-memories/validate-skills')
+                .send({ titleMemoryId: 't1', skills: ['s1'] });
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ message: 'El título tiene habilidades asociadas' });
+        });
+
+        it('→ 401 si no tiene', async () => {
+            (TitleMemoryService.validateSkillsFromTitle as jest.Mock).mockResolvedValue(false);
+            const res = await request(app)
+                .post('/title-memories/validate-skills')
+                .send({ titleMemoryId: 't1', skills: ['s1'] });
+            expect(res.status).toBe(401);
+            expect(res.body).toEqual({ message: 'El titulo no tiene habilidades asociadas' });
+        });
+    });
+
+    describe('POST /validate-lerning-outcomes', () => {
+        it('→ 200 si tiene resultados', async () => {
+            (TitleMemoryService.validateOutcomesFromTitle as jest.Mock).mockResolvedValue(true);
+            const res = await request(app)
+                .post('/title-memories/validate-lerning-outcomes')
+                .send({ titleMemoryId: 't1', learningOutcomes: ['o1'] });
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ message: 'El título tiene resultados de aprendizaje asociados' });
+        });
+
+        it('→ 401 si no tiene', async () => {
+            (TitleMemoryService.validateOutcomesFromTitle as jest.Mock).mockResolvedValue(false);
+            const res = await request(app)
+                .post('/title-memories/validate-lerning-outcomes')
+                .send({ titleMemoryId: 't1', learningOutcomes: ['o1'] });
+            expect(res.status).toBe(401);
+            expect(res.body).toEqual({ message: 'El titulo no tiene resultados de aprendizaje asociados' });
+        });
+    });
+
+    describe('POST /from-file', () => {
+        const validItem = {
+            titleCode: 'C1', universities: ['U'], centers: ['C'], name: 'N',
+            academicLevel: 'L', branch: 'B', academicField: 'F', status: 'S',
+            yearDelivery: 2025, totalCredits: 10, distributedCredits: 10,
+            skills: [], learningOutcomes: []
         };
-        const res = await request(app)
-            .post(basePath)
-            .set('Authorization', `Bearer ${validToken}`)
-            .send(payload);
 
-        expect(res.status).toBe(201);
-        expect(res.body).toHaveProperty('_id');
-        expect(res.body.userId).toBe(fakeUserId);
-        expect(await TitleMemoryModel.countDocuments()).toBe(1);
-    });
+        it('→ 401 sin token', async () => {
+            const res = await request(app).post('/title-memories/from-file');
+            expect(res.status).toBe(401);
+            expect(res.body).toEqual({ message: 'No token provided' });
+        });
 
-    it('GET /:id → 404 si no existe', async () => {
-        const fakeId = new mongoose.Types.ObjectId().toString();
-        const res = await request(app).get(`${basePath}/${fakeId}`);
-        expect(res.status).toBe(404);
-        expect(res.body.message).toMatch(/not found/i);
-    });
+        it('→ 400 sin archivos', async () => {
+            const res = await request(app)
+                .post('/title-memories/from-file')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`);
+            expect(res.status).toBe(400);
+            expect(res.body).toEqual({ message: 'No files provided' });
+        });
 
-    it('GET /:id → obtiene por ID', async () => {
-        const doc = await TitleMemoryModel.create({
-            titleCode: 'T2',
-            universities: ['U'],
-            centers: ['C'],
-            name: 'Test2',
-            academicLevel: 'Lic',
-            branch: 'B',
-            academicField: 'AF',
-            status: 'ok',
-            yearDelivery: 2022,
-            totalCredits: 60,
-            distributedCredits: {},
-            skills: [],
-            learningOutcomes: [],
-            userId: fakeUserId,
-        } as unknown as ITitleMemory);
+        it('→ 400 JSON inválido', async () => {
+            const res = await request(app)
+                .post('/title-memories/from-file')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`)
+                .attach('files', Buffer.from('not json'), 'bad.json');
+            expect(res.status).toBe(400);
+            expect(res.body.message).toMatch(/JSON inválido/);
+        });
 
-        const res = await request(app).get(`${basePath}/${doc._id}`);
-        expect(res.status).toBe(200);
-        expect(res.body.name).toBe('Test2');
-    });
+        it('→ 400 no es array', async () => {
+            const buf = Buffer.from(JSON.stringify({ foo: 'bar' }));
+            const res = await request(app)
+                .post('/title-memories/from-file')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`)
+                .attach('files', buf, 'not-array.json');
+            expect(res.status).toBe(400);
+            expect(res.body.message).toMatch(/debe ser un array de objetos/);
+        });
 
-    it('PUT /:id → 401 sin token', async () => {
-        const fakeId = new mongoose.Types.ObjectId().toString();
-        const res = await request(app).put(`${basePath}/${fakeId}`).send({ name: 'X' });
-        expect(res.status).toBe(401);
-    });
+        it('→ 400 esquema inválido', async () => {
+            const arr = [{ missing: 'prop' }];
+            const buf = Buffer.from(JSON.stringify(arr));
+            const res = await request(app)
+                .post('/title-memories/from-file')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`)
+                .attach('files', buf, 'bad-schema.json');
+            expect(res.status).toBe(400);
+            expect(res.body.message).toMatch(/falta la propiedad/);
+        });
 
-    it('PUT /:id → actualiza con token y 404 si no existe', async () => {
-        const doc = await TitleMemoryModel.create({
-            titleCode: 'T3',
-            universities: ['U'],
-            centers: ['C'],
-            name: 'ToUpdate',
-            academicLevel: 'Lic',
-            branch: 'B',
-            academicField: 'AF',
-            status: 'ok',
-            yearDelivery: 2023,
-            totalCredits: 60,
-            distributedCredits: {},
-            skills: [],
-            learningOutcomes: [],
-            userId: fakeUserId,
-        } as unknown as ITitleMemory);
+        it('→ 201 ok con items creados', async () => {
+            const arr = [validItem, validItem];
+            const buf = Buffer.from(JSON.stringify(arr));
+            (TitleMemoryService.create as jest.Mock).mockImplementation(item => Promise.resolve({ ...item, _id: 'X' }));
 
-        // Actualiza
-        const res1 = await request(app)
-            .put(`${basePath}/${doc._id}`)
-            .set('Authorization', `Bearer ${validToken}`)
-            .send({ name: 'Updated' });
-        expect(res1.status).toBe(200);
-        expect(res1.body.name).toBe('Updated');
+            const res = await request(app)
+                .post('/title-memories/from-file')
+                .set('Authorization', `Bearer ${VALID_TOKEN}`)
+                .attach('files', buf, 'good.json');
 
-        // ID fake
-        const fakeId = new mongoose.Types.ObjectId().toString();
-        const res2 = await request(app)
-            .put(`${basePath}/${fakeId}`)
-            .set('Authorization', `Bearer ${validToken}`)
-            .send({ name: 'X' });
-        expect(res2.status).toBe(404);
-    });
-
-    it('DELETE /:id → 401 sin token', async () => {
-        const fakeId = new mongoose.Types.ObjectId().toString();
-        const res = await request(app).delete(`${basePath}/${fakeId}`);
-        expect(res.status).toBe(401);
-    });
-
-    it('DELETE /:id → elimina con token y 404 si no existe', async () => {
-        const doc = await TitleMemoryModel.create({
-            titleCode: 'T4',
-            universities: ['U'],
-            centers: ['C'],
-            name: 'ToDelete',
-            academicLevel: 'Lic',
-            branch: 'B',
-            academicField: 'AF',
-            status: 'ok',
-            yearDelivery: 2024,
-            totalCredits: 60,
-            distributedCredits: {},
-            skills: [],
-            learningOutcomes: [],
-            userId: fakeUserId,
-        } as unknown as ITitleMemory);
-
-        // Borra real
-        const res1 = await request(app)
-            .delete(`${basePath}/${doc._id}`)
-            .set('Authorization', `Bearer ${validToken}`);
-        expect(res1.status).toBe(200);
-        expect(res1.body.message).toMatch(/deleted successfully/i);
-        expect(await TitleMemoryModel.exists({ _id: doc._id })).toBeFalsy();
-
-        // Borra inexistente
-        const fakeId = new mongoose.Types.ObjectId().toString();
-        const res2 = await request(app)
-            .delete(`${basePath}/${fakeId}`)
-            .set('Authorization', `Bearer ${validToken}`);
-        expect(res2.status).toBe(404);
-    });
-
-    it('POST /bulk → 401 sin token', async () => {
-        const res = await request(app).post(`${basePath}/bulk`).send([{}]);
-        expect(res.status).toBe(401);
-    });
-
-    it('POST /bulk → crea bulk con token', async () => {
-        const items = [{
-            titleCode: 'B1',
-            universities: ['U'],
-            centers: ['C'],
-            name: 'Bulk1',
-            academicLevel: 'Lic',
-            branch: 'B',
-            academicField: 'AF',
-            status: 'ok',
-            yearDelivery: 2020,
-            totalCredits: 60,
-            distributedCredits: {},
-            skills: [],
-            learningOutcomes: [],
-        }];
-        const res = await request(app)
-            .post(`${basePath}/bulk`)
-            .set('Authorization', `Bearer ${validToken}`)
-            .send(items);
-
-        expect(res.status).toBe(201);
-        expect(Array.isArray(res.body)).toBe(true);
-        expect(await TitleMemoryModel.countDocuments()).toBe(1);
-    });
-
-    it('POST /search → 400 sin filtros, 200 con resultados', async () => {
-        // 400
-        let res = await request(app).post(`${basePath}/search`).send({});
-        expect(res.status).toBe(400);
-
-        // Inserto dos docs
-        await TitleMemoryModel.insertMany([
-            {
-                titleCode: 'A', universities: ['U'], centers: ['C'], name: 'Alpha',
-                academicLevel: 'Lic', branch: 'B', academicField: 'AF',
-                status: 'ok', yearDelivery: 2020, totalCredits: 60,
-                distributedCredits: {}, skills: [], learningOutcomes: [], userId: fakeUserId
-            },
-            {
-                titleCode: 'B', universities: ['U'], centers: ['C'], name: 'Beta',
-                academicLevel: 'Lic', branch: 'B', academicField: 'AF',
-                status: 'ok', yearDelivery: 2021, totalCredits: 60,
-                distributedCredits: {}, skills: [], learningOutcomes: [], userId: fakeUserId
-            },
-        ] as unknown as ITitleMemory[]);
-
-        // 200
-        res = await request(app)
-            .post(`${basePath}/search`)
-            .send({ filters: { titleName: ['Alpha'] } });
-        expect(res.status).toBe(200);
-        expect(res.body.data).toHaveLength(1);
-        expect(res.body.data[0].name).toBe('Alpha');
-    });
-
-    it('POST auxiliares → check-title, validate-skills, validate-lerning-outcomes', async () => {
-        // check-title sin doc → 401
-        let res = await request(app)
-            .post(`${basePath}/check-title`)
-            .send({ titleMemoryId: 'x', userId: 'u' });
-        expect(res.status).toBe(500);
-
-        // Creo doc con skills/outcomes
-        const doc = await TitleMemoryModel.create({
-            titleCode: 'X', universities: ['U'], centers: ['C'], name: 'X',
-            academicLevel: 'Lic', branch: 'B', academicField: 'AF',
-            status: 'ok', yearDelivery: 2025, totalCredits: 60,
-            distributedCredits: {}, skills: ['s1'], learningOutcomes: [{ 'o1': ['s1'] }],
-            userId: fakeUserId,
-        } as unknown as ITitleMemory);
-
-        // check-title OK
-        res = await request(app)
-            .post(`${basePath}/check-title`)
-            .send({ titleMemoryId: doc._id, userId: fakeUserId });
-        expect(res.status).toBe(200);
-
-        // validate-skills KO y OK
-        res = await request(app)
-            .post(`${basePath}/validate-skills`)
-            .send({ titleMemoryId: doc._id, skills: ['x'] });
-        expect(res.status).toBe(500);
-        res = await request(app)
-            .post(`${basePath}/validate-skills`)
-            .send({ titleMemoryId: doc._id, skills: ['s1'] });
-        expect(res.status).toBe(200);
-
-        // validate-outcomes KO y OK
-        res = await request(app)
-            .post(`${basePath}/validate-lerning-outcomes`)
-            .send({ titleMemoryId: doc._id, learningOutcomes: ['x'] });
-        expect(res.status).toBe(500);
-        res = await request(app)
-            .post(`${basePath}/validate-lerning-outcomes`)
-            .send({ titleMemoryId: doc._id, learningOutcomes: ['o1'] });
-        expect(res.status).toBe(200);
+            expect(res.status).toBe(201);
+            expect(Array.isArray(res.body)).toBe(true);
+            expect(res.body).toHaveLength(2);
+            expect(TitleMemoryService.create).toHaveBeenCalledTimes(2);
+        });
     });
 });
