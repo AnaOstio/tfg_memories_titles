@@ -6,7 +6,7 @@ export const validateToken = async (token: string): Promise<{ isValid: boolean; 
 
     console.log('Validating token:', token, USERS_SERVICE_URL);
     try {
-        const response = await axios.get(`${USERS_SERVICE_URL}/api/auth/verify-token`, {
+        const response = await axios.get(`${USERS_SERVICE_URL}/auth/verify-token`, {
             headers: { Authorization: `Bearer ${token}` }
         });
         return { isValid: true, userId: response.data.user._id };
