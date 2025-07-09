@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const USERS_SERVICE_URL = process.env.USERS_SERVICE_URL || 'http://localhost:3000';
+const USERS_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://localhost:3000';
 
 export const getPermissionsByUser = async (token: string): Promise<any> => {
     try {
